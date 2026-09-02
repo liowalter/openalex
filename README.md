@@ -25,7 +25,7 @@ python3 src/main.py
 
 This creates `epfl_publications.csv` in the project folder.
 
-### Options
+#### Exporter Options
 
 - `--output`: path to output CSV file (default: `epfl_publications.csv`)
 - `--mailto`: contact email for OpenAlex polite pool
@@ -33,7 +33,7 @@ This creates `epfl_publications.csv` in the project folder.
 - `--limit`: maximum number of publications to export
 - `--year`: only export publications from a specific publication year
 
-Example with all options:
+Example:
 
 ```bash
 python3 src/main.py \
@@ -43,6 +43,20 @@ python3 src/main.py \
   --limit 500 \
   --year 2024
 ```
+
+### Swiss Co-authors Checker
+
+Check for all authors of a given publication if they have co-authored other works affiliated with a Swiss institution. It outputs a summary table of Swiss-affiliated co-authors, their affiliations, and the number of joint publications.
+
+```bash
+python3 src/check_swiss_coauthors.py --work-id W3146729407
+```
+
+#### Checker Options
+
+- `--work-id`: OpenAlex ID of the starting publication (default: `W3146729407`)
+- `--mailto`: contact email for OpenAlex polite pool
+- `--api-key`: your OpenAlex API key
 
 ## Run tests
 
