@@ -82,7 +82,8 @@ def main():
     print(f"Found {len(authorships)} authors in the starting work.")
 
     # Dictionary to store Swiss co-author info:
-    # { author_id: { "name": name, "affiliations": set(), "works": set(), "original_authors": set() } }
+    # { author_id: { "name": name, "affiliations": set(), "works": set(), 
+    #                "links": { original_author_name: { "works_count": 0, "topics": set() } } } }
     swiss_coauthors_stats = {}
 
     for authorship in authorships:
@@ -131,16 +132,13 @@ def main():
                         })
             
             if work_has_swiss:
-                # This work contributes to the count for these Swiss authors
-                # But we only count it once per Swiss author even if they are co-authors with multiple original authors?
-                # The requirement says "number of works they have done together with any of the original paper authors"
-                # So if Swiss Author A did Work 1 with Original Author X, count=1.
-                # If Swiss Author A also did Work 2 with Original Author Y, count=2.
-                # If Swiss Author A did Work 3 with both Original Author X and Y, count=1 (it's one work).
-                
-                # Wait, the loop is over original authors. 
-                # If we want the count of works done with ANY original author, we should track works we've already counted for each Swiss author.
-                
+                # Collect topics from the work
+                work_topics = []
+                for topic_obj in work.get("topics", []):
+                    topic_name = topic_obj.get("display_name")
+                    if topic_name:
+                        work_topics.append(topic_name)
+
                 for sa in current_work_swiss_authors:
                     sid = sa["id"]
                     if sid not in swiss_coauthors_stats:
@@ -148,32 +146,60 @@ def main():
                             "name": sa["name"],
                             "affiliations": set(),
                             "works": set(),
-                            "original_authors": set()
+                            "links": {}  # name -> {count, topics}
                         }
                     swiss_coauthors_stats[sid]["affiliations"].update(sa["affiliations"])
                     swiss_coauthors_stats[sid]["works"].add(work.get("id"))
-                    swiss_coauthors_stats[sid]["original_authors"].add(author_name)
+                    
+                    if author_name not in swiss_coauthors_stats[sid]["links"]:
+                        swiss_coauthors_stats[sid]["links"][author_name] = {
+                            "works_count": 0,
+                            "topics": set()
+                        }
+                    
+                    # We increment the count for this specific original-swiss pair
+                    # but only if we haven't seen this work for this specific pair yet?
+                    # The outer loop is original authors. The middle is works of that author.
+                    # So we are looking at Work W of Original Author O. 
+                    # If Swiss Author S is also in Work W, then (O, S) have co-authored Work W.
+                    # Since we iterate over works of O, each work is processed once for O.
+                    swiss_coauthors_stats[sid]["links"][author_name]["works_count"] += 1
+                    swiss_coauthors_stats[sid]["links"][author_name]["topics"].update(work_topics)
 
     if swiss_coauthors_stats:
-        print("\n" + "="*80)
+        print("\n" + "="*100)
         print("SWISS CO-AUTHORS SUMMARY")
-        print("="*80)
-        print(f"{'Name':<25} | {'Works':<5} | {'Original Authors':<30} | {'Affiliations'}")
-        print("-" * 120)
+        print("="*100)
+        print(f"{'Swiss Author':<25} | {'Total':<5} | {'Original Author':<25} | {'Co-Works':<8} | {'Topics'}")
+        print("-" * 140)
         
-        # Sort by count descending
-        sorted_swiss = sorted(
-            swiss_coauthors_stats.values(), 
-            key=lambda x: len(x["works"]), 
+        # Sort Swiss authors by total count descending
+        sorted_swiss_ids = sorted(
+            swiss_coauthors_stats.keys(), 
+            key=lambda sid: len(swiss_coauthors_stats[sid]["works"]), 
             reverse=True
         )
         
-        for sa in sorted_swiss:
-            name = sa["name"]
-            count = len(sa["works"])
-            orig_authors = ", ".join(sorted(sa["original_authors"]))
-            affs = ", ".join(filter(None, sorted(sa["affiliations"])))
-            print(f"{name[:25]:<25} | {count:<5} | {orig_authors[:30]:<30} | {affs}")
+        for sid in sorted_swiss_ids:
+            sa = swiss_coauthors_stats[sid]
+            swiss_name = sa["name"]
+            total_works = len(sa["works"])
+            
+            # For each Swiss author, show their links to original authors
+            first_row = True
+            sorted_links = sorted(sa["links"].items(), key=lambda x: x[1]["works_count"], reverse=True)
+            
+            for orig_name, link_data in sorted_links:
+                co_works = link_data["works_count"]
+                topics = ", ".join(sorted(link_data["topics"]))
+                
+                name_col = swiss_name[:25] if first_row else ""
+                total_col = str(total_works) if first_row else ""
+                
+                print(f"{name_col:<25} | {total_col:<5} | {orig_name[:25]:<25} | {co_works:<8} | {topics}")
+                first_row = False
+            
+            print("-" * 140)
     else:
         print("\nNo Swiss co-authors found in other publications.")
 
